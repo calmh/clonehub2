@@ -59,7 +59,10 @@ func process(repo *github.Repository) error {
 func clone(repo *github.Repository, path string) error {
 	log.Println("Clone into", path)
 	cmd := exec.Command("git", "clone", "--mirror", repo.GetCloneURL(), path)
-	_, err := cmd.CombinedOutput()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("%s: %s\n", repo.GetFullName(), out)
+	}
 	return err
 }
 
@@ -67,6 +70,9 @@ func fetch(repo *github.Repository, path string) error {
 	log.Println("Fetch in", path)
 	cmd := exec.Command("git", "remote", "update", "-p")
 	cmd.Dir = path
-	_, err := cmd.CombinedOutput()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("%s: %s\n", repo.GetFullName(), out)
+	}
 	return err
 }
