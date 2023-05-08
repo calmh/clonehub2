@@ -7,10 +7,13 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"sync"
 
 	"github.com/google/go-github/v32/github"
 	"golang.org/x/oauth2"
 )
+
+const workers = 8
 
 func main() {
 	ctx := context.Background()
@@ -21,31 +24,53 @@ func main() {
 
 	client := github.NewClient(tc)
 
-	var repos []*github.Repository
-	var opts github.RepositoryListOptions
-	for {
-		tr, resp, err := client.Repositories.List(ctx, "", &opts)
-		if err != nil {
-			log.Fatal("Listing repositories:", err)
-		}
-		repos = append(repos, tr...)
-		if resp.NextPage <= opts.Page {
-			break
-		}
-		opts.Page = resp.NextPage
+	repos := make(chan *github.Repository, 2*workers)
+	go func() {
+		listRepos(ctx, client, repos)
+		close(repos)
+	}()
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			worker(repos)
+		}()
 	}
 
-	for _, repo := range repos {
+	wg.Wait()
+}
+
+func worker(repos chan *github.Repository) {
+	for repo := range repos {
 		if err := process(repo); err != nil {
 			log.Printf("%s: %v\n", repo.GetFullName(), err)
 		}
 	}
 }
 
+func listRepos(ctx context.Context, client *github.Client, repos chan *github.Repository) {
+	var opts github.RepositoryListOptions
+	for {
+		tr, resp, err := client.Repositories.List(ctx, "", &opts)
+		if err != nil {
+			log.Fatal("Listing repositories:", err)
+		}
+		for _, repo := range tr {
+			repos <- repo
+		}
+		if resp.NextPage <= opts.Page {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+}
+
 func process(repo *github.Repository) error {
 	name := repo.GetFullName()
 	org := path.Dir(name)
-	if err := os.MkdirAll(org, 0755); err != nil {
+	if err := os.MkdirAll(org, 0o755); err != nil {
 		return fmt.Errorf("creating organization dir: %w", err)
 	}
 
