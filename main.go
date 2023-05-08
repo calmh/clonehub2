@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -16,9 +18,17 @@ import (
 const workers = 8
 
 func main() {
+	setCredential := flag.Bool("set-credential", false, "Set GITHUB_TOKEN as git credential")
+	flag.Parse()
+
+	token := os.Getenv("GITHUB_TOKEN")
+	if *setCredential {
+		setGitCredential(token)
+	}
+
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
+		&oauth2.Token{AccessToken: token},
 	)
 	tc := oauth2.NewClient(ctx, ts)
 
@@ -40,6 +50,23 @@ func main() {
 	}
 
 	wg.Wait()
+}
+
+func setGitCredential(token string) {
+	// Use a cache credential helper
+	bs, err := exec.Command("git", "config", "--global", "credential.helper", "cache").CombinedOutput()
+	if err != nil {
+		log.Fatalf("git config: %s\n", bs)
+	}
+
+	// Prime the cache with the token as credential
+	buf := bytes.NewBufferString(fmt.Sprintf("protocol=https\nhost=github.com\nusername=oauth2\npassword=%s\n", token))
+	cmd := exec.Command("git", "credential", "approve")
+	cmd.Stdin = buf
+	bs, err = cmd.CombinedOutput()
+	if err != nil {
+		log.Fatalf("git credential approve: %s\n", bs)
+	}
 }
 
 func worker(repos chan *github.Repository) {
