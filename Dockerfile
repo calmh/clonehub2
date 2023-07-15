@@ -1,3 +1,4 @@
 FROM alpine/git:latest
-COPY clonehub-linux-amd64 /bin/clonehub
+ARG TARGETARCH
+COPY clonehub-linux-${TARGETARCH} /bin/clonehub
 ENTRYPOINT ["/bin/clonehub"]
