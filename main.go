@@ -125,6 +125,22 @@ func fetch(repo *github.Repository, path string) error {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Printf("%s: %s\n", repo.GetFullName(), out)
+		return err
+	}
+	return gc(path)
+}
+
+func gc(path string) error {
+	cmd := exec.Command("git", "gc", "--force")
+	cmd.Dir = path
+	cmd.Env = append(os.Environ(),
+		"GIT_CONFIG_COUNT=1",
+		"GIT_CONFIG_KEY_0=gc.autoDetach",
+		"GIT_CONFIG_VALUE_0=false",
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("git gc in %s: %s\n", path, out)
 	}
 	return err
 }
