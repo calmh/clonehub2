@@ -127,10 +127,11 @@ func fetch(repo *github.Repository, path string) error {
 		log.Printf("%s: %s\n", repo.GetFullName(), out)
 		return err
 	}
-	return gc(path)
+	gc(path)
+	return nil
 }
 
-func gc(path string) error {
+func gc(path string) {
 	cmd := exec.Command("git", "gc", "--force")
 	cmd.Dir = path
 	cmd.Env = append(os.Environ(),
@@ -138,9 +139,19 @@ func gc(path string) error {
 		"GIT_CONFIG_KEY_0=gc.autoDetach",
 		"GIT_CONFIG_VALUE_0=false",
 	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
+	if out, err := cmd.CombinedOutput(); err != nil {
 		log.Printf("git gc in %s: %s\n", path, out)
 	}
-	return err
+
+	cmd = exec.Command("git", "repack", "-Ad")
+	cmd.Dir = path
+	if out, err := cmd.CombinedOutput(); err != nil {
+		log.Printf("git gc in %s: %s\n", path, out)
+	}
+
+	cmd = exec.Command("git", "prune")
+	cmd.Dir = path
+	if out, err := cmd.CombinedOutput(); err != nil {
+		log.Printf("git gc in %s: %s\n", path, out)
+	}
 }
