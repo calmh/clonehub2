@@ -1,6 +1,6 @@
 module calmh.dev/clonehub2
 
-go 1.20
+go 1.24.0
 
 require (
 	github.com/google/go-github/v32 v32.1.0

@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"slices"
+	"strings"
 	"sync"
 
 	"github.com/google/go-github/v32/github"
@@ -19,12 +21,16 @@ const workers = 8
 
 func main() {
 	setCredential := flag.Bool("set-credential", false, "Set GITHUB_TOKEN as git credential")
+	exclude := flag.String("exclude", os.Getenv("CLONEHUB_EXCLUDE"), "Comma separated list of users or orgs to exclude")
 	flag.Parse()
 
 	token := os.Getenv("GITHUB_TOKEN")
 	if *setCredential {
 		setGitCredential(token)
 	}
+
+	excludes := strings.Split(*exclude, ",")
+	excludes = slices.DeleteFunc(excludes, func(s string) bool { return s == "" })
 
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
@@ -36,7 +42,7 @@ func main() {
 
 	repos := make(chan *github.Repository, 2*workers)
 	go func() {
-		listRepos(ctx, client, repos)
+		listRepos(ctx, client, repos, excludes)
 		close(repos)
 	}()
 
@@ -77,7 +83,7 @@ func worker(repos chan *github.Repository) {
 	}
 }
 
-func listRepos(ctx context.Context, client *github.Client, repos chan *github.Repository) {
+func listRepos(ctx context.Context, client *github.Client, repos chan *github.Repository, excludes []string) {
 	var opts github.RepositoryListOptions
 	for {
 		tr, resp, err := client.Repositories.List(ctx, "", &opts)
@@ -85,6 +91,9 @@ func listRepos(ctx context.Context, client *github.Client, repos chan *github.Re
 			log.Fatal("Listing repositories:", err)
 		}
 		for _, repo := range tr {
+			if slices.Contains(excludes, repo.GetOwner().GetName()) {
+				continue
+			}
 			repos <- repo
 		}
 		if resp.NextPage <= opts.Page {
