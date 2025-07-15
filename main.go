@@ -91,7 +91,8 @@ func listRepos(ctx context.Context, client *github.Client, repos chan *github.Re
 			log.Fatal("Listing repositories:", err)
 		}
 		for _, repo := range tr {
-			if slices.Contains(excludes, repo.GetOwner().GetName()) {
+			org, _, _ := strings.Cut(repo.GetFullName(), "/")
+			if slices.ContainsFunc(excludes, func(s string) bool { return strings.EqualFold(org, s) }) {
 				continue
 			}
 			repos <- repo
